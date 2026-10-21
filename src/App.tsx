@@ -1,7 +1,9 @@
 import { useRef, useState, type ReactNode } from "react"
 import {
   analyzeMessage,
+  refineReply,
   type AnalysisResult,
+  type RefineAction,
   type Tone,
 } from "./services/lazyReplyService"
 
@@ -24,6 +26,10 @@ const SAMPLE_RESULT: AnalysisResult = {
     "The total updated budget must stay under $48,000.",
     "A client meeting is scheduled for Monday at 10 AM.",
   ],
+  questions: [
+    "Could you send the final version by Friday at 3 PM?",
+    "Let me know if the timing is tight.",
+  ],
   actionItems: [
     "Send the final proposal by Friday at 3 PM.",
     "Add the updated budget breakdown and highlight changes from the first draft.",
@@ -33,7 +39,22 @@ const SAMPLE_RESULT: AnalysisResult = {
     "Hi Daniel, thanks for the clear feedback. I’ll send the final proposal by Friday at 3 PM with the revised budget breakdown, keeping the total under $48,000, and a summary of changes from the first draft. I’ll also include a few talking points for Monday’s client meeting. The timing works on my end.",
 }
 
-type IconName = "arrow" | "bolt" | "check" | "clipboard" | "clock" | "copy" | "feather" | "lock" | "refresh" | "spark" | "target"
+type IconName =
+  | "arrow"
+  | "bolt"
+  | "check"
+  | "clipboard"
+  | "clock"
+  | "copy"
+  | "feather"
+  | "lock"
+  | "refresh"
+  | "spark"
+  | "target"
+  | "user"
+  | "x"
+  | "eye"
+  | "eye-off"
 
 function Icon({
   name,
@@ -100,6 +121,32 @@ function Icon({
         <circle cx="12" cy="12" r="9" />
         <circle cx="12" cy="12" r="4" />
         <path d="M12 8V3" />
+      </>
+    ),
+    user: (
+      <>
+        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
+      </>
+    ),
+    x: (
+      <>
+        <path d="M18 6 6 18" />
+        <path d="m6 6 12 12" />
+      </>
+    ),
+    eye: (
+      <>
+        <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+        <circle cx="12" cy="12" r="3" />
+      </>
+    ),
+    "eye-off": (
+      <>
+        <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+        <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+        <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+        <line x1="2" x2="22" y1="2" y2="22" />
       </>
     ),
   }
@@ -289,6 +336,10 @@ type ResultSectionProps = {
   loading?: boolean
   onCopy?: () => void
   copied?: boolean
+  isEditable?: boolean
+  onContentChange?: (val: string) => void
+  onRefine?: (action: RefineAction) => void
+  refineActionLoading?: RefineAction | null
 }
 
 function ResultSection({
@@ -298,7 +349,13 @@ function ResultSection({
   loading,
   onCopy,
   copied,
+  isEditable,
+  onContentChange,
+  onRefine,
+  refineActionLoading,
 }: ResultSectionProps) {
+  const [isEditing, setIsEditing] = useState(false)
+
   return (
     <section className="group rounded-2xl border border-line bg-white p-5 transition-all hover:border-sage hover:shadow-soft">
       <div className="mb-4 flex items-center justify-between gap-3">
@@ -308,7 +365,10 @@ function ResultSection({
           </span>
           <h3 className="text-sm font-bold tracking-[-0.01em]">{title}</h3>
         </div>
-        {content && (
+        {Boolean(
+          content &&
+            (Array.isArray(content) ? content.length > 0 : Boolean(content)),
+        ) && (
           <button
             type="button"
             onClick={onCopy}
@@ -327,16 +387,43 @@ function ResultSection({
           <div className="shimmer h-3 w-2/3 rounded-full" />
         </div>
       ) : Array.isArray(content) ? (
-        <ul className="space-y-2.5">
-          {content.map((item) => (
-            <li className="flex gap-2.5 text-sm leading-6 text-body" key={item}>
-              <span className="mt-2.5 size-1.5 shrink-0 rounded-full bg-sage-dark" />
-              {item}
-            </li>
-          ))}
-        </ul>
+        content.length > 0 ? (
+          <ul className="space-y-2.5">
+            {content.map((item) => (
+              <li
+                className="flex gap-2.5 text-sm leading-6 text-body"
+                key={item}
+              >
+                <span className="mt-2.5 size-1.5 shrink-0 rounded-full bg-sage-dark" />
+                {item}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs italic text-muted">
+            None explicitly mentioned in the message.
+          </p>
+        )
       ) : content ? (
-        <p className="text-sm leading-6 text-body">{content}</p>
+        isEditable && isEditing ? (
+          <div className="space-y-2">
+            <textarea
+              value={typeof content === "string" ? content : ""}
+              onChange={(e) => onContentChange?.(e.target.value)}
+              rows={4}
+              className="w-full resize-y rounded-xl border border-sage-dark bg-canvas p-3 text-sm leading-6 text-body outline-none focus:bg-white focus:ring-2 focus:ring-sage/20"
+              placeholder="Edit your reply draft..."
+            />
+            <p className="text-[0.7rem] italic text-muted">
+              Tip: Fill in bracketed placeholders like [Insert availability]
+              directly before copying.
+            </p>
+          </div>
+        ) : (
+          <p className="whitespace-pre-wrap text-sm leading-6 text-body">
+            {content}
+          </p>
+        )
       ) : (
         <div className="space-y-2.5 opacity-60">
           <div className="h-2.5 w-full rounded-full bg-stone" />
@@ -344,11 +431,444 @@ function ResultSection({
           <div className="h-2.5 w-3/5 rounded-full bg-stone" />
         </div>
       )}
+
+      {onRefine && content && !loading && (
+        <div className="mt-4 border-t border-line/70 pt-3.5">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5 text-[0.68rem] font-bold uppercase tracking-wider text-muted">
+              <Icon name="spark" className="size-3 text-forest" /> Quick refine
+            </span>
+            {isEditable && (
+              <button
+                type="button"
+                onClick={() => setIsEditing(!isEditing)}
+                className="text-[0.72rem] font-semibold text-muted underline decoration-sage underline-offset-2 transition hover:text-forest"
+              >
+                {isEditing ? "Done editing" : "Edit draft manually"}
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-1.5">
+            {[
+              {
+                action: "shorter" as RefineAction,
+                label: "Make shorter",
+                icon: "bolt" as IconName,
+              },
+              {
+                action: "warmer" as RefineAction,
+                label: "Warmer",
+                icon: "spark" as IconName,
+              },
+              {
+                action: "formal" as RefineAction,
+                label: "More formal",
+                icon: "clipboard" as IconName,
+              },
+              {
+                action: "regenerate" as RefineAction,
+                label: "Regenerate",
+                icon: "refresh" as IconName,
+              },
+            ].map((btn) => (
+              <button
+                key={btn.action}
+                type="button"
+                disabled={Boolean(refineActionLoading)}
+                onClick={() => onRefine(btn.action)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-canvas/70 px-2.5 py-1 text-xs font-semibold text-ink transition hover:border-sage hover:bg-white disabled:opacity-50"
+              >
+                {refineActionLoading === btn.action ? (
+                  <span className="size-3 animate-spin rounded-full border border-forest/40 border-t-forest" />
+                ) : (
+                  <Icon name={btn.icon} className="size-3 text-forest" />
+                )}
+                {btn.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   )
 }
 
-function Workspace() {
+export type User = {
+  name: string
+  email: string
+  provider?: "google" | "email"
+}
+
+function nameFromEmail(email: string): string {
+  if (!email || !email.includes("@")) return "User"
+  const local = email.split("@")[0].trim()
+  const cleaned = local.replace(/[._-]+/g, " ")
+  return (
+    cleaned
+      .split(" ")
+      .filter(Boolean)
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ") || "User"
+  )
+}
+
+function AuthPage({
+  onBack,
+  onLogin,
+}: {
+  onBack: () => void
+  onLogin: (user: User) => void
+}) {
+  const [tab, setTab] = useState<"signin" | "signup">("signin")
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [name, setName] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [error, setError] = useState("")
+  const [isGooglePromptOpen, setIsGooglePromptOpen] = useState(false)
+  const [googleEmail, setGoogleEmail] = useState("")
+
+  const handleGoogleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const targetEmail = googleEmail.trim() || "user@gmail.com"
+    const derivedName = nameFromEmail(targetEmail)
+    onLogin({
+      name: derivedName,
+      email: targetEmail,
+      provider: "google",
+    })
+  }
+
+  const handleEmailSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+
+    const cleanEmail = email.trim()
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      setError("Please enter a valid email address.")
+      return
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.")
+      return
+    }
+
+    const resolvedName =
+      tab === "signup" && name.trim()
+        ? name.trim()
+        : nameFromEmail(cleanEmail)
+
+    onLogin({
+      name: resolvedName,
+      email: cleanEmail,
+      provider: "email",
+    })
+  }
+
+  return (
+    <div className="flex min-h-screen flex-col bg-cream text-ink">
+      <header className="border-b border-line bg-white/60 px-5 py-4 backdrop-blur sm:px-8">
+        <div className="mx-auto flex max-w-5xl items-center justify-between">
+          <button
+            onClick={onBack}
+            type="button"
+            className="inline-flex items-center gap-2 text-xs font-semibold text-muted transition hover:text-ink"
+          >
+            <span className="grid size-7 place-items-center rounded-lg bg-sage-pale font-bold text-forest">
+              ←
+            </span>
+            Back to home
+          </button>
+          <Logo />
+          <div className="w-20" />
+        </div>
+      </header>
+
+      <main className="flex flex-1 items-center justify-center p-4 py-12 sm:p-6">
+        <div className="w-full max-w-md overflow-hidden rounded-3xl border border-line bg-white p-7 shadow-product sm:p-9">
+          <div className="text-center">
+            <span className="mx-auto mb-3 grid size-12 place-items-center rounded-2xl bg-ink text-cream shadow-sm">
+              <Icon name="feather" className="size-6" />
+            </span>
+            <h1 className="font-display text-2xl font-bold tracking-tight text-ink sm:text-3xl">
+              {tab === "signin" ? "Sign in to LazyReply" : "Create your account"}
+            </h1>
+            <p className="mt-1.5 text-xs text-muted">
+              {tab === "signin"
+                ? "Enter your details to access your AI message workspace."
+                : "Join to turn long messages into clear summaries and replies."}
+            </p>
+          </div>
+
+          <div className="mt-6 grid grid-cols-2 gap-1 rounded-xl border border-line bg-canvas p-1">
+            <button
+              type="button"
+              onClick={() => {
+                setTab("signin")
+                setError("")
+              }}
+              className={`rounded-lg py-2 text-xs font-semibold transition ${
+                tab === "signin"
+                  ? "bg-white text-ink shadow-sm"
+                  : "text-muted hover:text-ink"
+              }`}
+            >
+              Sign In
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTab("signup")
+                setError("")
+              }}
+              className={`rounded-lg py-2 text-xs font-semibold transition ${
+                tab === "signup"
+                  ? "bg-white text-ink shadow-sm"
+                  : "text-muted hover:text-ink"
+              }`}
+            >
+              Create Account
+            </button>
+          </div>
+
+          <div className="mt-5">
+            <button
+              type="button"
+              onClick={() => setIsGooglePromptOpen(true)}
+              className="flex min-h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-line bg-canvas/60 text-sm font-semibold text-ink shadow-sm transition hover:border-sage-dark hover:bg-sage-pale/40 focus-visible:outline-2 focus-visible:outline-forest"
+            >
+              <svg className="size-4 shrink-0" viewBox="0 0 24 24">
+                <path
+                  fill="#4285F4"
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                />
+              </svg>
+              Continue with Google
+            </button>
+          </div>
+
+          <div className="my-5 flex items-center gap-3">
+            <div className="h-px flex-1 bg-line" />
+            <span className="text-[0.7rem] font-medium uppercase tracking-wider text-faint">
+              or with email
+            </span>
+            <div className="h-px flex-1 bg-line" />
+          </div>
+
+          {error && (
+            <div className="mb-4 rounded-xl border border-error/20 bg-error-pale p-3 text-xs text-error">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleEmailSubmit} className="space-y-3.5">
+            {tab === "signup" && (
+              <div>
+                <label
+                  className="mb-1 block text-xs font-semibold text-muted"
+                  htmlFor="signup-name"
+                >
+                  Full Name
+                </label>
+                <input
+                  id="signup-name"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. David Chen"
+                  className="w-full rounded-xl border border-line bg-canvas/40 px-3.5 py-2.5 text-sm outline-none transition focus:border-sage-dark focus:bg-white focus:ring-2 focus:ring-sage/20"
+                />
+              </div>
+            )}
+
+            <div>
+              <label
+                className="mb-1 block text-xs font-semibold text-muted"
+                htmlFor="auth-email-input"
+              >
+                Email Address
+              </label>
+              <input
+                id="auth-email-input"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@company.com"
+                required
+                className="w-full rounded-xl border border-line bg-canvas/40 px-3.5 py-2.5 text-sm outline-none transition focus:border-sage-dark focus:bg-white focus:ring-2 focus:ring-sage/20"
+              />
+            </div>
+
+            <div>
+              <div className="mb-1 flex items-center justify-between">
+                <label
+                  className="block text-xs font-semibold text-muted"
+                  htmlFor="auth-password-input"
+                >
+                  Password
+                </label>
+                {tab === "signin" && (
+                  <span className="text-[0.68rem] text-muted">
+                    Min 6 characters
+                  </span>
+                )}
+              </div>
+              <div className="relative">
+                <input
+                  id="auth-password-input"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  className="w-full rounded-xl border border-line bg-canvas/40 px-3.5 py-2.5 pr-10 text-sm outline-none transition focus:border-sage-dark focus:bg-white focus:ring-2 focus:ring-sage/20"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-muted hover:text-ink"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  <Icon
+                    name={showPassword ? "eye-off" : "eye"}
+                    className="size-4"
+                  />
+                </button>
+              </div>
+            </div>
+
+            <Button type="submit" className="mt-2 w-full py-3">
+              {tab === "signin" ? "Sign In" : "Create Account"}
+              <Icon name="arrow" className="size-4" />
+            </Button>
+          </form>
+
+          <div className="mt-6 rounded-2xl border border-dashed border-line bg-canvas/50 p-3 text-center">
+            <p className="text-[0.7rem] text-muted">
+              Hackathon Judge?{" "}
+              <button
+                type="button"
+                onClick={() =>
+                  onLogin({
+                    name: "Hackathon Judge",
+                    email: "judge@hackathon.dev",
+                    provider: "email",
+                  })
+                }
+                className="ml-1 font-bold text-forest underline decoration-forest/30 hover:decoration-forest"
+              >
+                1-Click Fast Pass
+              </button>
+            </p>
+          </div>
+        </div>
+      </main>
+
+      {/* Interactive Google Sign-In Dialog */}
+      {isGooglePromptOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-3xl border border-line bg-white p-6 shadow-product animate-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-line pb-3">
+              <div className="flex items-center gap-2">
+                <svg className="size-5" viewBox="0 0 24 24">
+                  <path
+                    fill="#4285F4"
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                  />
+                </svg>
+                <span className="text-xs font-bold text-muted">
+                  Sign in with Google
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsGooglePromptOpen(false)}
+                className="grid size-6 place-items-center rounded-full text-muted hover:bg-canvas"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleGoogleSubmit} className="mt-4">
+              <p className="text-sm font-bold text-ink">
+                Enter your Google Account
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                LazyReply will use your Google profile name and email for your
+                session.
+              </p>
+
+              <div className="mt-3">
+                <label className="mb-1 block text-xs font-semibold text-muted">
+                  Google Account Email
+                </label>
+                <input
+                  type="email"
+                  value={googleEmail}
+                  onChange={(e) => setGoogleEmail(e.target.value)}
+                  placeholder="e.g. yourname@gmail.com"
+                  required
+                  autoFocus
+                  className="w-full rounded-xl border border-line bg-canvas px-3 py-2 text-sm outline-none focus:border-sage-dark focus:bg-white"
+                />
+              </div>
+
+              <div className="mt-4 flex gap-2">
+                <Button type="submit" className="flex-1 py-2 text-xs">
+                  Continue with Google
+                </Button>
+                <Button
+                  variant="secondary"
+                  type="button"
+                  onClick={() => setIsGooglePromptOpen(false)}
+                  className="py-2 text-xs"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Workspace({
+  user,
+  onRequireAuth,
+  standalone = false,
+}: {
+  user: User | null
+  onRequireAuth: () => void
+  standalone?: boolean
+}) {
   const [message, setMessage] = useState("")
   const [tone, setTone] = useState<Tone>("friendly")
   const [result, setResult] = useState<AnalysisResult | null>(null)
@@ -358,7 +878,45 @@ function Workspace() {
   const [validation, setValidation] = useState("")
   const [isExample, setIsExample] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
+  const [refineLoading, setRefineLoading] = useState<RefineAction | null>(null)
   const errorRef = useRef<HTMLDivElement>(null)
+
+  const handleRefine = async (action: RefineAction) => {
+    if (!result || !result.suggestedReply) return
+    setRefineLoading(action)
+    try {
+      const refined = await refineReply(
+        message,
+        result.suggestedReply,
+        action,
+      )
+      setResult((prev) =>
+        prev
+          ? {
+              ...prev,
+              suggestedReply: refined,
+              suggested_reply: refined,
+            }
+          : null,
+      )
+    } catch {
+      // Keep existing reply if refinement fails
+    } finally {
+      setRefineLoading(null)
+    }
+  }
+
+  const handleReplyChange = (newText: string) => {
+    setResult((prev) =>
+      prev
+        ? {
+            ...prev,
+            suggestedReply: newText,
+            suggested_reply: newText,
+          }
+        : null,
+    )
+  }
 
   const handleMessageChange = (value: string) => {
     setMessage(value)
@@ -390,6 +948,11 @@ function Workspace() {
   }
 
   const submit = async () => {
+    if (!user) {
+      onRequireAuth()
+      return
+    }
+
     const trimmed = message.trim()
     if (!trimmed) {
       setValidation(
@@ -436,20 +999,27 @@ function Workspace() {
   }> = [
     { key: "summary", title: "Quick Summary", icon: "spark" },
     { key: "importantPoints", title: "Important Points", icon: "target" },
+    { key: "questions", title: "Questions to Answer", icon: "clock" },
     { key: "actionItems", title: "Action Items", icon: "clipboard" },
     { key: "suggestedReply", title: "Suggested Reply", icon: "feather" },
   ]
 
   return (
     <section
-      className="scroll-mt-6 bg-canvas px-4 py-20 sm:px-6 sm:py-28"
+      className={`scroll-mt-6 ${
+        standalone
+          ? "bg-transparent py-2"
+          : "bg-canvas px-4 py-20 sm:px-6 sm:py-28"
+      }`}
       id="workspace"
     >
       <div className="mx-auto max-w-7xl">
-        <SectionTitle copy="Paste the message that’s taking up too much headspace. We’ll pull out what matters and help shape a reply.">
-          From message overload to{" "}
-          <em className="font-normal text-forest">handled.</em>
-        </SectionTitle>
+        {!standalone && (
+          <SectionTitle copy="Paste the message that’s taking up too much headspace. We’ll pull out what matters and help shape a reply.">
+            From message overload to{" "}
+            <em className="font-normal text-forest">handled.</em>
+          </SectionTitle>
+        )}
 
         <div className="grid overflow-hidden rounded-[1.75rem] border border-line bg-white shadow-product lg:grid-cols-[0.92fr_1.08fr]">
           <div className="border-b border-line bg-white p-5 sm:p-8 lg:border-b-0 lg:border-r">
@@ -544,6 +1114,12 @@ function Workspace() {
                 <>
                   <span className="size-4 animate-spin rounded-full border-2 border-cream/40 border-t-cream" />
                   Lightening the load…
+                </>
+              ) : !user ? (
+                <>
+                  <Icon name="lock" className="size-4" />
+                  Sign in to make this effortless
+                  <Icon name="arrow" className="ml-1 size-4" />
                 </>
               ) : (
                 <>
@@ -649,6 +1225,18 @@ function Workspace() {
                   content={result?.[section.key]}
                   loading={status === "loading"}
                   copied={copied === section.key}
+                  isEditable={section.key === "suggestedReply"}
+                  onContentChange={
+                    section.key === "suggestedReply"
+                      ? handleReplyChange
+                      : undefined
+                  }
+                  onRefine={
+                    section.key === "suggestedReply" ? handleRefine : undefined
+                  }
+                  refineActionLoading={
+                    section.key === "suggestedReply" ? refineLoading : null
+                  }
                   onCopy={() =>
                     result?.[section.key] &&
                     copyContent(section.key, result[section.key])
@@ -663,11 +1251,79 @@ function Workspace() {
   )
 }
 
-function App() {
-  const scrollToWorkspace = () => {
-    document.querySelector("#workspace")?.scrollIntoView({ behavior: "smooth" })
-  }
+function AppDashboard({
+  user,
+  onLogout,
+}: {
+  user: User
+  onLogout: () => void
+}) {
+  const userInitials = user.name
+    ? user.name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase()
+    : user.email.slice(0, 2).toUpperCase()
 
+  return (
+    <div className="min-h-screen bg-canvas text-ink">
+      <header className="sticky top-0 z-30 border-b border-line bg-white/85 backdrop-blur-md">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-8">
+          <Logo />
+
+          <div className="flex items-center gap-2.5 sm:gap-4">
+            <div className="flex items-center gap-2.5 rounded-2xl border border-line bg-canvas/80 px-3 py-1.5 shadow-soft">
+              <span className="grid size-8 place-items-center rounded-xl bg-sage-pale text-xs font-bold text-forest">
+                {userInitials}
+              </span>
+              <div className="hidden text-left sm:block">
+                <p className="text-xs font-bold leading-tight text-ink">
+                  {user.name}
+                </p>
+                <p className="text-[0.68rem] leading-tight text-muted">
+                  {user.email}
+                </p>
+              </div>
+              <span className="size-2 rounded-full bg-forest" title="Connected" />
+            </div>
+
+            <button
+              onClick={onLogout}
+              className="inline-flex min-h-9 items-center rounded-xl border border-line bg-white px-3 text-xs font-semibold text-muted transition hover:border-error/40 hover:bg-error-pale hover:text-error"
+              type="button"
+            >
+              Sign out
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-10">
+        <div className="mb-6 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">
+              Hello, {user.name.split(" ")[0]}
+            </h1>
+            <p className="mt-0.5 text-xs text-muted">
+              Paste your email or message below to extract key points and draft a
+              ready-to-send reply.
+            </p>
+          </div>
+          <div className="inline-flex items-center gap-1.5 self-start rounded-full border border-sage/60 bg-white/70 px-3 py-1 text-[0.68rem] font-bold text-forest shadow-soft">
+            <Icon name="spark" className="size-3.5" />
+            AI Model: Qwen 27B Active
+          </div>
+        </div>
+
+        <Workspace user={user} onRequireAuth={() => {}} standalone />
+      </main>
+    </div>
+  )
+}
+
+function LandingPage({ onOpenAuth }: { onOpenAuth: () => void }) {
   return (
     <div className="min-h-screen overflow-hidden bg-cream text-ink">
       <header className="absolute inset-x-0 top-0 z-20">
@@ -684,10 +1340,20 @@ function App() {
               Privacy
             </a>
           </div>
-          <Button variant="secondary" onClick={scrollToWorkspace}>
-            Try it now
-            <Icon name="arrow" className="size-4" />
-          </Button>
+
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              onClick={onOpenAuth}
+              type="button"
+              className="rounded-xl px-3 py-2 text-xs font-semibold text-muted transition hover:text-ink"
+            >
+              Sign in
+            </button>
+            <Button variant="secondary" onClick={onOpenAuth}>
+              Try it now
+              <Icon name="arrow" className="size-4" />
+            </Button>
+          </div>
         </nav>
       </header>
 
@@ -728,14 +1394,14 @@ function App() {
             <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Button
                 className="w-full px-6 py-3 sm:w-auto"
-                onClick={scrollToWorkspace}
+                onClick={onOpenAuth}
               >
                 Try LazyReply
                 <Icon name="arrow" className="size-4" />
               </Button>
               <p className="flex items-center gap-2 px-3 text-xs font-semibold text-muted">
                 <Icon name="check" className="size-4 text-forest" />
-                No sign-up. Just paste and go.
+                Sign in with Google or Email in seconds.
               </p>
             </div>
           </div>
@@ -853,7 +1519,7 @@ function App() {
           </div>
         </section>
 
-        <Workspace />
+        <Workspace user={null} onRequireAuth={onOpenAuth} />
 
         <section
           className="bg-ink px-4 py-20 text-cream sm:px-6 sm:py-24"
@@ -890,6 +1556,53 @@ function App() {
       </footer>
     </div>
   )
+}
+
+function App() {
+  const [user, setUser] = useState<User | null>(() => {
+    try {
+      const saved = localStorage.getItem("lazyreply_user")
+      return saved ? JSON.parse(saved) : null
+    } catch {
+      return null
+    }
+  })
+  const [currentView, setCurrentView] = useState<"landing" | "auth">("landing")
+
+  const handleLogin = (newUser: User) => {
+    setUser(newUser)
+    try {
+      localStorage.setItem("lazyreply_user", JSON.stringify(newUser))
+    } catch {
+      // ignore storage errors
+    }
+    setCurrentView("landing")
+  }
+
+  const handleLogout = () => {
+    setUser(null)
+    try {
+      localStorage.removeItem("lazyreply_user")
+    } catch {
+      // ignore storage errors
+    }
+    setCurrentView("landing")
+  }
+
+  if (user) {
+    return <AppDashboard user={user} onLogout={handleLogout} />
+  }
+
+  if (currentView === "auth") {
+    return (
+      <AuthPage
+        onBack={() => setCurrentView("landing")}
+        onLogin={handleLogin}
+      />
+    )
+  }
+
+  return <LandingPage onOpenAuth={() => setCurrentView("auth")} />
 }
 
 export default App

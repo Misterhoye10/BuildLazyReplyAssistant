@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: lazyreply-backend
+    env: python
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT backend.app:app
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: qwen/qwen3.8-27b
+      - key: FLASK_ENV
+        value: production
+      - key: CORS_ORIGIN
+        value: "*"
