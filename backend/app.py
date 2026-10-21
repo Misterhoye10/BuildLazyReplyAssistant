@@ -1,7 +1,21 @@
+import sys
+from pathlib import Path
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from backend.config import Config
-from backend.services.ai_service import process_message, refine_reply, AIServiceError
+
+# Ensure imports work whether root directory is project root or backend/
+current_dir = Path(__file__).resolve().parent
+if str(current_dir) not in sys.path:
+    sys.path.insert(0, str(current_dir))
+if str(current_dir.parent) not in sys.path:
+    sys.path.insert(0, str(current_dir.parent))
+
+try:
+    from backend.config import Config
+    from backend.services.ai_service import process_message, refine_reply, AIServiceError
+except ImportError:
+    from config import Config
+    from services.ai_service import process_message, refine_reply, AIServiceError
 
 def create_app():
     app = Flask(__name__)
@@ -9,6 +23,19 @@ def create_app():
 
     # Configure CORS
     CORS(app, resources={r"/*": {"origins": Config.CORS_ORIGIN}})
+
+    @app.route("/", methods=["GET"])
+    def root():
+        return jsonify({
+            "service": "LazyReply API",
+            "status": "online",
+            "version": "1.0.0",
+            "endpoints": {
+                "health": "/api/health",
+                "process": "/api/process",
+                "refine_reply": "/api/refine-reply"
+            }
+        }), 200
 
     @app.route("/api/health", methods=["GET"])
     def health_check():

@@ -1,7 +1,10 @@
 import json
 import re
 import requests
-from backend.config import Config
+try:
+    from backend.config import Config
+except ImportError:
+    from config import Config
 
 class AIServiceError(Exception):
     """Custom exception for AI service errors."""
