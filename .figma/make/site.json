@@ -1,0 +1,11 @@
+{
+  "title": "LazyReply — AI Message Assistant",
+  "description": "Streamline your messaging with an AI assistant that summarizes conversations, highlights key points, and suggests replies, making communication effortless.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": true,
+    "ignoreReducedMotion": false
+  }
+}

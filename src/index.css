@@ -1,0 +1,111 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,500;1,6..72,400&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'DM Sans', sans-serif;
+  --font-display: 'Newsreader', serif;
+
+  --color-cream: #f7f5ef;
+  --color-canvas: #f1f0e9;
+  --color-white: #fffefa;
+  --color-ink: #252823;
+  --color-body: #444940;
+  --color-muted: #696f66;
+  --color-faint: #92968f;
+  --color-line: #dedfd7;
+  --color-stone: #e9e9e2;
+  --color-sage-pale: #e5ecdf;
+  --color-sage: #c4d1ba;
+  --color-sage-dark: #829676;
+  --color-forest: #465b3e;
+  --color-clay: #c98a73;
+  --color-gold: #c9ab68;
+  --color-error: #9b4b3f;
+  --color-error-pale: #f6e9e5;
+
+  --shadow-soft: 0 8px 28px rgba(45, 53, 42, 0.08);
+  --shadow-button: 0 7px 16px rgba(37, 40, 35, 0.16);
+  --shadow-button-hover: 0 10px 22px rgba(70, 91, 62, 0.22);
+  --shadow-product: 0 28px 70px rgba(45, 53, 42, 0.13), 0 3px 10px rgba(45, 53, 42, 0.05);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    min-width: 320px;
+    background: var(--color-cream);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button,
+  a,
+  label {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  ::selection {
+    background: var(--color-sage);
+    color: var(--color-ink);
+  }
+}
+
+@keyframes float-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@layer utilities {
+  .preview-float {
+    animation: float-in 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      var(--color-stone) 25%,
+      var(--color-sage-pale) 50%,
+      var(--color-stone) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite linear;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
